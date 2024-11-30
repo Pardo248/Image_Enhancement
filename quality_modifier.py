@@ -11,7 +11,7 @@ def load_image(image_path):
     return img
 
 # Function to downscale the image resolution
-def downscale_image(img, scale=0.2): 
+def downscale_image(img, scale=0.3):  
     h, w, _ = img.shape
     low_res_img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
     return low_res_img
@@ -24,11 +24,11 @@ def save_image(img, output_path):
 
 # Main function
 def main():
-    input_folder = r"D:\machin_proyecto\dataset"  # Folder containing images
-    output_folder = os.path.join(input_folder, "resized_images")  # Folder to save resized images
+    input_folder = r"D:\machin_proyecto\buena_calidad"  # Folder containing images
+    output_folder = r"D:\machin_proyecto\mala_calidad"  # Folder to save resized images
     os.makedirs(output_folder, exist_ok=True)  # Create output folder if it doesn't exist
 
-    scale = 0.2  # Scale factor for resizing
+    scale = 0.3  # Scale factor for resizing (10%)
     
     # Iterate over all image files in the folder
     for filename in os.listdir(input_folder):
