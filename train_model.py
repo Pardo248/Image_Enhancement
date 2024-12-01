@@ -2,44 +2,55 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
-import numpy as np
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import Sequence
 import os
 import cv2
-from tensorflow.keras.callbacks import ModelCheckpoint
+import numpy as np
 
-# Ajustar dimensiones de LR para que coincidan con HR
-def upscale_images(lr_images, target_shape):
-    scaled_images = []
-    for img in lr_images:
-        scaled_img = cv2.resize(img, (target_shape[1], target_shape[0]), interpolation=cv2.INTER_CUBIC)
-        scaled_images.append(scaled_img)
-    return np.array(scaled_images)
+# Generador para cargar imágenes desde el disco
+class ImageSequence(Sequence):
+    def __init__(self, hr_folder, lr_folder, batch_size, target_shape=None):
+        self.hr_folder = hr_folder
+        self.lr_folder = lr_folder
+        self.batch_size = batch_size
+        self.target_shape = target_shape
+        
+        # Obtener listas de imágenes
+        self.hr_images = sorted([os.path.join(hr_folder, f) for f in os.listdir(hr_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        self.lr_images = sorted([os.path.join(lr_folder, f) for f in os.listdir(lr_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))])
+        
+        if len(self.hr_images) != len(self.lr_images):
+            raise ValueError("El número de imágenes en las carpetas HR y LR no coincide.")
+        
+        self.num_samples = len(self.hr_images)
 
-# Función para cargar imágenes desde las carpetas
-def load_images(hr_folder, lr_folder):
-    hr_images = []
-    lr_images = []
+    def __len__(self):
+        return int(np.ceil(self.num_samples / self.batch_size))
 
-    # Cargar imágenes de alta calidad (HR)
-    for filename in os.listdir(hr_folder):
-        file_path = os.path.join(hr_folder, filename)
-        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            img_hr = load_img(file_path)  # Cargar imagen en formato PIL
-            img_hr = img_to_array(img_hr) / 255.0  # Convertir a array y normalizar
-            hr_images.append(img_hr)
+    def __getitem__(self, idx):
+        # Obtener índices para este lote
+        batch_hr = self.hr_images[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_lr = self.lr_images[idx * self.batch_size:(idx + 1) * self.batch_size]
+        
+        hr_images, lr_images = [], []
+        
+        for hr_path, lr_path in zip(batch_hr, batch_lr):
+            # Leer imágenes HR y LR
+            hr_img = cv2.imread(hr_path)
+            lr_img = cv2.imread(lr_path)
+            
+            if self.target_shape:
+                hr_img = cv2.resize(hr_img, (self.target_shape[1], self.target_shape[0]), interpolation=cv2.INTER_CUBIC)
+                lr_img = cv2.resize(lr_img, (self.target_shape[1], self.target_shape[0]), interpolation=cv2.INTER_CUBIC)
 
-    # Cargar imágenes de baja calidad (LR)
-    for filename in os.listdir(lr_folder):
-        file_path = os.path.join(lr_folder, filename)
-        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            img_lr = load_img(file_path)
-            img_lr = img_to_array(img_lr) / 255.0
-            lr_images.append(img_lr)
+            # Normalizar a valores entre 0 y 1
+            hr_images.append(hr_img / 255.0)
+            lr_images.append(lr_img / 255.0)
+        
+        return np.array(lr_images), np.array(hr_images)
 
-    return np.array(lr_images), np.array(hr_images)
-
-# Modelo de super-resolución simple basado en CNN
+# Modelo de super-resolución basado en CNN
 def build_model():
     model = Sequential()
 
@@ -60,23 +71,21 @@ def build_model():
     return model
 
 # Función para entrenar el modelo
-def train_model(model, lr_images, hr_images, epochs=100, batch_size=8):
+def train_model(model, train_gen, epochs=10):
     model.compile(optimizer=Adam(learning_rate=0.0002), loss='mse', metrics=['accuracy'])
 
     # Guardar el mejor modelo durante el entrenamiento
     checkpoint = ModelCheckpoint(
-        "best_model.h5",
+        "best_model.keras",
         monitor="val_loss",
         save_best_only=True,
         verbose=1
     )
-    
+
     # Entrenamiento del modelo
     history = model.fit(
-        lr_images, hr_images,
-        batch_size=batch_size,
+        train_gen,
         epochs=epochs,
-        validation_split=0.1,
         callbacks=[checkpoint]
     )
     return history
@@ -86,18 +95,16 @@ if __name__ == "__main__":
     hr_folder = r"buena_calidad"
     lr_folder = r"mala_calidad"
 
-    # Cargar imágenes
-    lr_images, hr_images = load_images(hr_folder, lr_folder)
+    # Definir tamaño objetivo (opcional) y tamaño de lote
+    target_shape = (540, 960)  # Ajustar según las necesidades
+    batch_size = 8
 
-    # Escalar las imágenes LR a las dimensiones de HR
-    lr_images = upscale_images(lr_images, hr_images.shape[1:3])  # Escalar LR a HR
-
-    print(f"Imágenes LR escaladas: {lr_images.shape}")
-    print(f"Imágenes HR: {hr_images.shape}")
+    # Crear el generador de imágenes
+    train_gen = ImageSequence(hr_folder, lr_folder, batch_size=batch_size, target_shape=target_shape)
 
     # Construir y entrenar el modelo
     model = build_model()
-    history = train_model(model, lr_images, hr_images, epochs=50, batch_size=16)
+    history = train_model(model, train_gen, epochs=10)
 
     # Guardar el modelo
-    model.save("super_resolution_model.h5")
+    model.save("super_resolution_model.keras")
