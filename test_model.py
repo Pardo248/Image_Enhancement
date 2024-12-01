@@ -1,8 +1,23 @@
 import tensorflow as tf
 import numpy as np
+import os
 import cv2
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
 import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing.image import img_to_array, load_img
+
+# Función para cargar imágenes desde las carpetas
+def load_images(lr_folder):
+    lr_images = []
+
+    # Cargar imágenes de baja calidad (LR)
+    for filename in os.listdir(lr_folder):
+        file_path = os.path.join(lr_folder, filename)
+        if os.path.isfile(file_path) and filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            img_lr = load_img(file_path)
+            img_lr = img_to_array(img_lr) / 255.0
+            lr_images.append(img_lr)
+
+    return np.array(lr_images)
 
 # Función para aumentar la resolución de una imagen
 def upscale_image(model, lr_image):
@@ -12,30 +27,31 @@ def upscale_image(model, lr_image):
     return sr_image
 
 if __name__ == "__main__":
-    # Cargar el modelo previamente entrenado
-    model = tf.keras.models.load_model('super_resolution_model.h5')
+    # Cargar el modelo entrenado
+    model = tf.keras.models.load_model("super_resolution_model.h5")
 
-    # Cargar una imagen de baja resolución para probar
-    lr_image_path = 'ruta/a/imagen_de_prueba.jpg'
-    lr_image = load_img(lr_image_path)
-    lr_image = img_to_array(lr_image) / 255.0
+    # Directorio de imágenes de baja resolución (LR)
+    lr_folder = r"D:\machin_proyecto\mala_calidad"  # Cambia esta ruta si es necesario
 
-    # Realizar la predicción
-    sr_image = upscale_image(model, lr_image)
+    # Cargar las imágenes de baja resolución
+    lr_images = load_images(lr_folder)
 
-    # Mostrar los resultados
+    # Probar con una imagen de baja resolución
+    test_lr_image = lr_images[0]
+    sr_image = upscale_image(model, test_lr_image)
+
+    # Mostrar resultados
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 3, 1)
     plt.title("Low Resolution")
-    plt.imshow(lr_image)
+    plt.imshow(test_lr_image)
 
     plt.subplot(1, 3, 2)
     plt.title("Super Resolution")
     plt.imshow(sr_image)
 
-    # Para la imagen de alta resolución (HR), puedes cargarla y mostrarla si la tienes
-    hr_image_path = 'ruta/a/imagen_de_alta_resolucion.jpg'
-    hr_image = load_img(hr_image_path)
+    # Cargar una imagen de alta resolución para la comparación (opcional)
+    hr_image = load_img(r"D:\machin_proyecto\buena_calidad\example.jpg")  # Cambia esta ruta si es necesario
     hr_image = img_to_array(hr_image) / 255.0
     plt.subplot(1, 3, 3)
     plt.title("High Resolution")

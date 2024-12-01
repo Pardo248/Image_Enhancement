@@ -1,12 +1,11 @@
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, UpSampling2D, Input
+from tensorflow.keras.layers import Conv2D, BatchNormalization, Activation, UpSampling2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.image import img_to_array, load_img
 import numpy as np
 import os
 import cv2
-import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 # Ajustar dimensiones de LR para que coincidan con HR
@@ -82,13 +81,6 @@ def train_model(model, lr_images, hr_images, epochs=100, batch_size=8):
     )
     return history
 
-# Función para aumentar la resolución de una imagen
-def upscale_image(model, lr_image):
-    lr_image = np.expand_dims(lr_image, axis=0)  # Añadir dimensión para batch
-    sr_image = model.predict(lr_image)[0]  # Quitar batch
-    sr_image = np.clip(sr_image, 0, 1)  # Asegurar valores entre 0 y 1
-    return sr_image
-
 if __name__ == "__main__":
     # Directorios de las carpetas
     hr_folder = r"D:\machin_proyecto\buena_calidad"
@@ -109,22 +101,3 @@ if __name__ == "__main__":
 
     # Guardar el modelo
     model.save("super_resolution_model.h5")
-
-    # Probar con una imagen de baja calidad
-    test_lr_image = lr_images[0]
-    sr_image = upscale_image(model, test_lr_image)
-
-    # Mostrar resultados
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 3, 1)
-    plt.title("Low Resolution")
-    plt.imshow(test_lr_image)
-
-    plt.subplot(1, 3, 2)
-    plt.title("Super Resolution")
-    plt.imshow(sr_image)
-
-    plt.subplot(1, 3, 3)
-    plt.title("High Resolution")
-    plt.imshow(hr_images[0])
-    plt.show()
